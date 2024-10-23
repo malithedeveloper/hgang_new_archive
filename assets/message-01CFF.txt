@@ -1,0 +1,197 @@
+import random
+import discord
+import time
+import aiohttp
+import json
+import requests
+import datetime
+# import tenor
+from os import *
+from discord.ext import commands
+from discord.ext.commands import has_permissions, MissingPermissions
+from discord import app_commands
+
+
+intents = discord.Intents.all()
+client = commands.Bot(command_prefix="!", intents=intents)
+
+
+
+
+@client.event
+async def on_ready():
+    print(f'Starting discord bot')
+    print(f'Logged on!')
+    await client.change_presence(status=discord.Status.do_not_disturb, activity=discord.Activity(type=discord.ActivityType.watching, name="cats"))
+    print("Loaded status")
+    print("The console is non writable.")
+    print(client.guilds)
+    await client.tree.sync()
+
+
+@client.tree.command(name = "badge", description = "A command to let you get the Active Developer Badge (Owner)")
+async def badge(int: discord.Interaction):
+    await int.response.send_message("You should be eligible")
+
+@client.command()
+async def help(ctx):
+	embed = discord.Embed(title="Commands")
+	embed.add_field(name="Admin and Non Admin commands", value="Commands that can be used by admins and non-admins", inline=False)
+	embed.add_field(name="!avatar", value="Get persons avatar!", inline=False)
+	embed.add_field(name="!cat", value="Finds a picture of a cute cat online!")
+	embed.add_field(name="!echo", value="Sends a message put in quotes ''<message>'' ", inline=False)
+	embed.add_field(name="!info", value="Shows info about the bot", inline=False)
+	embed.add_field(name="!ping", value="Get bot's ping", inline=False)
+	embed.add_field(name="!roll", value="Roll a dice with random sides!", inline=False)
+	embed.add_field(name="!log", value="Sends the argument you added to the console. Must be put in quotes.")
+	embed.add_field(name="!users", value="Shows how many members the server has", inline=False)
+	embed.add_field(name="Admin only commands", value="Commands that can be used by admins only.", inline=False)
+	embed.add_field(name="!ban", value="Ban a user", inline=False)
+	embed.add_field(name="!unban", value="Unbans a user", inline=False)
+	embed.add_field(name="!invites", value="Shows how many users a person has invited.", inline=False)
+	embed.add_field(name="!kick", value="Kicks a user", inline=False)
+	await ctx.send(content="More commands coming soon", embed=embed)
+print("Loaded command commands")
+@client.command()
+async def info(ctx):
+    embed = discord.Embed(title="Bot statistics")
+    embed.add_field(name="Bot username", value="<@1050289486124306452>")
+    embed.add_field(name="Bot Author", value="RobinAnd#4304")
+    await ctx.send(content="Current stats for Cat-bot", embed=embed)
+print("Loaded command info")
+@client.command()
+async def users(ctx):
+    await ctx.send(f"""This server has {ctx.guild.member_count} members""")
+print("Loaded command user")
+@client.command()
+
+async def sendonline(ctx):
+    await ctx.send("This bot uses the !commands command as the help command")
+print("Loaded command sendonline")
+@client.command()
+async def echo(ctx, arg):
+    await ctx.send(arg)
+print("Loaded command echo")
+
+@client.command()
+@has_permissions(ban_members = True)
+async def ban (ctx, member:discord.User=None, reason =None):
+    if member == None or member == ctx.message.author:
+        await ctx.channel.send("You cannot ban yourself")
+        return
+    if reason == None:
+        reason = "For being a jerk!"
+    await ctx.guild.ban(member, reason=reason)
+    await ctx.channel.send(f"{member} is banned!")
+print("Loaded command ban")
+@client.command()
+@has_permissions(ban_members=True)
+async def unban (ctx, member:discord.User=None):
+    if member == None or member == ctx.message.author:
+        await ctx.channel.send("You are not banned")
+        return
+    await ctx.guild.unban(member)
+    await ctx.channel.send(f"{member} is unbanned!")
+print("Loaded command unban")
+@client.command()
+async def banlist(ctx):
+    print("Retriving ban info")
+    embed = discord.Embed(title="Bans")
+    async for entry in ctx.guild.bans():
+        user = entry.user
+        embed.add_field(name=user, value="A banned user")
+    await ctx.send(embed=embed)
+@client.command()
+@has_permissions(kick_members = True)
+async def kick(ctx, user: discord.Member, *, reason = None):
+    if not reason:
+        await user.kick()
+        await ctx.send(f"**{user}** has been kicked for **no reason**.")
+    else:
+        await user.kick(reason=reason)
+        await ctx.send(f"**{user}** has been kicked for **{reason}**.")
+print("Loaded command kick")
+@client.command()
+async def avatar(ctx, *, member: discord.Member = None):
+    if not member:
+        member = ctx.message.author
+    userAvatar = member.avatar.url
+    await ctx.send(userAvatar)
+print("Loaded command avatar")
+@client.command()
+async def cat(ctx):
+    embed = discord.Embed(colour=discord.Colour.blue(), title="Awwwwww :cat2:")
+    session = aiohttp.ClientSession()
+
+    search = "cute cat"
+    response = await session.get('http://api.giphy.com/v1/gifs/search?q=' + search + '&api_key=c72ZDg36YlcbBokvelcdhmNd2iNDKLPR&limit=10')
+    data = json.loads(await response.text())
+    gif_choice = random.randint(0, 9)
+    embed.set_image(url=data['data'][gif_choice]['images']['original']['url'])
+
+    await session.close()
+
+    await ctx.send(embed=embed)
+print("Loaded command cat")
+@client.command()
+async def ping(ctx):
+    if round(client.latency * 1000) <= 50:
+        embed=discord.Embed(title="PING", description=f":ping_pong: The ping is **{round(client.latency *1000)}** milliseconds!", color=0x44ff44)
+    elif round(client.latency * 1000) <= 100:
+        embed=discord.Embed(title="PING", description=f":ping_pong: The ping is **{round(client.latency *1000)}** milliseconds!", color=0xffd000)
+    elif round(client.latency * 1000) <= 200:
+        embed=discord.Embed(title="PING", description=f":ping_pong: The ping is **{round(client.latency *1000)}** milliseconds!", color=0xff6600)
+    else:
+        embed=discord.Embed(title="PING", description=f":ping_pong: The ping is **{round(client.latency *1000)}** milliseconds!", color=0x990000)
+    await ctx.send(embed=embed)
+print("Loaded Command Ping")
+@client.command()
+async def servers(ctx):
+	if ctx.author.id == 993781395761676298:
+		activeservers = client.guilds
+		embed = discord.Embed(title="Bot servers: " + str(len(activeservers)))
+		for guild in activeservers:
+			embed.add_field(name=guild.name, value="One of the servers", inline=False)
+		await ctx.send(content=None, embed=embed)
+	else:
+		await ctx.send("You do not have the required permissions to use this command - Developer Only")
+print("Loaded Command servers")
+@client.command()
+async def roll(ctx):
+	sides = random.randint(0, 10)
+	roll = random.randint(0, sides)
+	print(roll)
+	await ctx.send(roll)
+print("Loaded command Roll")
+@client.command()
+async def log(ctx, arg):
+    print(arg)
+    await ctx.author.send("Message sent")
+print("Loaded command log")
+@client.command()
+async def invites(ctx, user = None):
+    if user == None:
+        totalInvites = 0
+        for i in await ctx.guild.invites():
+            if i.inviter == ctx.author:
+                totalInvites += i.uses
+        await ctx.send(f"You've invited {totalInvites} member{'' if totalInvites == 1 else 's'} to the server!")
+    else:
+        totalInvites = 0
+        for i in await ctx.guild.invites():
+            member = ctx.message.guild.get_member_named(user)
+        if i.inviter == member:
+            totalInvites += i.uses
+            await ctx.send(f"{member} has invited {totalInvites} member{'' if totalInvites == 1 else 's'} to the server!")
+print("Loaded command invites")
+
+@client.command()
+async def devaccess(ctx):
+    if ctx.author.id == 993781395761676298:
+        print("RobinAnd has Activated the development mode.")
+        await ctx.send("Developer Mode has been activated. You cannot use the bot during this period.")
+    else:
+        await ctx.send("You cannot activate Developer mode because you are not a developer. ")
+print("Loaded command devaccess")
+print("Loaded All required commands. Requesting launch.")
+
