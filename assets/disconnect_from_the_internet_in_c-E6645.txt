@@ -1,0 +1,140 @@
+#include <windows.h>
+#include <iphlpapi.h>
+
+VOID Release(LPTSTR Index)
+{
+	HANDLE ProcessHeap;
+	 ProcessHeap = GetProcessHeap();
+    IP_ADAPTER_INDEX_MAP AdapterInfo;
+    DWORD ret;
+    DWORD i;
+
+    /* if interface is not given, query GetInterfaceInfo */
+    if (Index == NULL)
+    {
+        PIP_INTERFACE_INFO pInfo = NULL;
+        ULONG ulOutBufLen = 0;
+
+        if (GetInterfaceInfo(pInfo, &ulOutBufLen) == ERROR_INSUFFICIENT_BUFFER)
+        {
+            pInfo = (IP_INTERFACE_INFO *)HeapAlloc(ProcessHeap, 0, ulOutBufLen);
+            if (pInfo == NULL)
+                return;
+
+            if (GetInterfaceInfo(pInfo, &ulOutBufLen) == NO_ERROR )
+            {
+                for (i = 0; i < pInfo->NumAdapters; i++)
+                {
+                     CopyMemory(&AdapterInfo, &pInfo->Adapter[i], sizeof(IP_ADAPTER_INDEX_MAP));
+                    
+
+                     /* Call IpReleaseAddress to release the IP address on the specified adapter. */
+                     if ((ret = IpReleaseAddress(&AdapterInfo)) != NO_ERROR)
+                     {
+                        
+                     }
+                }
+
+                HeapFree(ProcessHeap, 0, pInfo);
+            }
+            else
+            {
+               
+                HeapFree(ProcessHeap, 0, pInfo);
+                return;
+            }
+        }
+        else
+        {
+           
+            return;
+        }
+    }
+    else
+    {
+        ;
+        /* FIXME:
+         * we need to be able to release connections by name with support for globbing
+         * i.e. ipconfig /release Eth* will release all cards starting with Eth...
+         *      ipconfig /release *con* will release all cards with 'con' in their name
+         */
+    }
+}
+
+
+VOID Renew(LPTSTR Index)
+{
+		HANDLE ProcessHeap;
+	 ProcessHeap = GetProcessHeap();
+    IP_ADAPTER_INDEX_MAP AdapterInfo;
+    DWORD i;
+
+    /* if interface is not given, query GetInterfaceInfo */
+    if (Index == NULL)
+    {
+        PIP_INTERFACE_INFO pInfo;
+        ULONG ulOutBufLen = 0;
+
+        pInfo = (IP_INTERFACE_INFO *)HeapAlloc(ProcessHeap, 0, sizeof(IP_INTERFACE_INFO));
+        if (pInfo == NULL)
+        {
+           
+            return;
+        }
+
+        /* Make an initial call to GetInterfaceInfo to get
+         * the necessary size into the ulOutBufLen variable */
+        if ( GetInterfaceInfo(pInfo, &ulOutBufLen) == ERROR_INSUFFICIENT_BUFFER)
+        {
+            HeapFree(ProcessHeap, 0, pInfo);
+            pInfo = (IP_INTERFACE_INFO *)HeapAlloc(ProcessHeap, 0, ulOutBufLen);
+            if (pInfo == NULL)
+            {
+                
+                return;
+            }
+        }
+
+        /* Make a second call to GetInterfaceInfo to get the actual data we want */
+        if (GetInterfaceInfo(pInfo, &ulOutBufLen) == NO_ERROR )
+        {
+            for (i = 0; i < pInfo->NumAdapters; i++)
+            {
+                CopyMemory(&AdapterInfo, &pInfo->Adapter[i], sizeof(IP_ADAPTER_INDEX_MAP));
+                
+
+
+                /* Call IpRenewAddress to renew the IP address on the specified adapter. */
+                if (IpRenewAddress(&AdapterInfo) != NO_ERROR)
+                {
+                   
+                   
+                }
+            }
+        }
+        else
+        {
+           
+           
+        }
+
+        HeapFree(ProcessHeap, 0, pInfo);
+    }
+    else
+    {
+        ;
+        /* FIXME:
+         * we need to be able to renew connections by name with support for globbing
+         * i.e. ipconfig /renew Eth* will renew all cards starting with Eth...
+         *      ipconfig /renew *con* will renew all cards with 'con' in their name
+         */
+    }
+}
+
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+Release(NULL);
+MessageBoxA(0, "ip released", "ip", 0);
+Renew(NULL);
+MessageBoxA(0, "ip renewed", "ip", 0);
+}

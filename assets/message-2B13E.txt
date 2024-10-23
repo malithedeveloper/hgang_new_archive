@@ -1,0 +1,83 @@
+void processRenameDirectory(RENAME_DIRECTORY_MSG* msg) {
+	/*
+	* consider oldPath = \DosDevices\C:\Windows and
+	* newPath = \DosDevices\C:\Lmfaooo
+	*/
+	UNICODE_STRING oldDirPath;
+	RtlInitUnicodeString(&oldDirPath, msg->kernelOldPath);
+	OBJECT_ATTRIBUTES oldDirObjAttribs;
+	InitializeObjectAttributes(&oldDirObjAttribs, &oldDirPath,
+		OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, 0, NULL);
+	HANDLE hDir;
+	IO_STATUS_BLOCK ioStatus;
+	msg->status = IoCreateFileEx(&hDir, SYNCHRONIZE, &oldDirObjAttribs,
+		&ioStatus, NULL, FILE_ATTRIBUTE_NORMAL /*ignored*/,
+		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+		FILE_OPEN, FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT,
+		NULL, 0, CreateFileTypeNone, NULL, IO_IGNORE_SHARE_ACCESS_CHECK, NULL);
+	if (msg->status != STATUS_SUCCESS)
+		return;
+	PFILE_OBJECT pFileObject;
+	msg->status = ObReferenceObjectByHandle(hDir, SYNCHRONIZE, *IoFileObjectType,
+		KernelMode, (PVOID*)&pFileObject, NULL);
+	ObCloseHandle(hDir, KernelMode);
+	if (msg->status != STATUS_SUCCESS) {
+		return;
+	}
+	pFileObject->SharedDelete = TRUE;
+	pFileObject->SharedRead = TRUE;
+	pFileObject->SharedWrite = TRUE;
+	pFileObject->DeleteAccess = TRUE;
+	pFileObject->ReadAccess = TRUE;
+	pFileObject->WriteAccess = TRUE;
+	pFileObject->Busy = FALSE;
+	pFileObject->DeletePending = FALSE;
+
+	KEVENT completionEvent;
+	KeInitializeEvent(&completionEvent, SynchronizationEvent, FALSE);
+
+	SIZE_T renameInfoLength = sizeof(FILE_RENAME_INFORMATION) - 2 +
+		2 * (wcslen(msg->kernelNewPath) + 1);
+
+	PFILE_RENAME_INFORMATION renameInfo = (PFILE_RENAME_INFORMATION)
+		ExAllocatePool(NonPagedPool, renameInfoLength);
+	renameInfo->ReplaceIfExists = TRUE;
+	renameInfo->Flags =
+		FILE_RENAME_REPLACE_IF_EXISTS |
+		FILE_RENAME_POSIX_SEMANTICS |
+		FILE_RENAME_IGNORE_READONLY_ATTRIBUTE;
+	renameInfo->RootDirectory = NULL;	
+	renameInfo->FileNameLength = (ULONG)wcslen(msg->kernelNewPath) * 2;
+	wcscpy(renameInfo->FileName, msg->kernelNewPath);
+
+	PDEVICE_OBJECT pFsDevice = IoGetBaseFileSystemDeviceObject(pFileObject);
+	PIRP pIrp = IoAllocateIrp(pFsDevice->StackSize, FALSE);
+	IoSetCompletionRoutine(pIrp, completionRoutine, NULL,
+		TRUE, TRUE, TRUE);
+	PIO_STACK_LOCATION pIrpStack = IoGetNextIrpStackLocation(pIrp);
+	pIrp->AssociatedIrp.SystemBuffer = renameInfo;
+	pIrp->UserIosb = &ioStatus;
+	pIrp->UserEvent = &completionEvent;
+	pIrp->RequestorMode = KernelMode;
+	pIrp->Tail.Overlay.Thread = KeGetCurrentThread();
+	pIrp->Tail.Overlay.OriginalFileObject = pFileObject;
+	pIrpStack->FileObject = pFileObject;
+	pIrpStack->DeviceObject = pFsDevice;
+	pIrpStack->MajorFunction = IRP_MJ_SET_INFORMATION;
+	pIrpStack->Flags |= SL_FORCE_DIRECT_WRITE;
+	pIrpStack->Parameters.SetFile.Length = (ULONG)renameInfoLength;
+	pIrpStack->Parameters.SetFile.FileInformationClass = FileRenameInformationEx;
+	pIrpStack->Parameters.SetFile.FileObject = pFileObject;
+	pIrpStack->Parameters.SetFile.ReplaceIfExists = TRUE;
+	msg->status = IofCallDriver(pFsDevice, pIrp);
+	if (msg->status == STATUS_SUCCESS) {
+		LogPrint("calldriver success\n");
+	}
+	KeWaitForSingleObject(&completionEvent, Executive, KernelMode, TRUE, NULL);
+	ObfDereferenceObject(pFileObject);
+	ExFreePool(renameInfo);
+
+	DbgPrintEx(0, 0, "iostatus status = %!STATUS!", ioStatus.Status);
+
+	msg->status = ioStatus.Status;
+}
